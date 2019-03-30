@@ -1,21 +1,27 @@
-import copy
+import logging
 
-from tesseract import algorithms, canonical, graph
+from tesseract import canonical, graph
+
+
+LOG = logging.getLogger('MINE')
 
 
 def forwards_explore(G, alg, c):
-    if len(c) > alg.max:
+    if len(c) == alg.max:
         return
     else:
         V = set(graph.neighborhood(c, G))
         for v in V:
             if v not in c:
-                cc = copy.deepcopy(c)
-                cc.append(v)
-                if canonical.canonical(cc, G):
-                    if alg.filter(cc, G):
-                        alg.process(cc, G)
-                        forwards_explore(G, alg, cc)
+                if canonical.canonical(c, v, G):
+                    c.append(v)
+                    LOG.debug('%s %s' %(str(c), 'F'))
+                    if alg.filter(c, G, v):
+                        alg.process(c, G)
+                        forwards_explore(G, alg, c)
+                    c.pop()
+                else:
+                    LOG.debug('%s %s' %(str(c), 'R'))
 
 
 def forwards_explore_all(G, f):
@@ -23,31 +29,64 @@ def forwards_explore_all(G, f):
         forwards_explore(G, f, [v])
 
 
-def backwards_explore(G, alg, c):
+def backwards_explore(G, alg, c, last_v=None):
+    if not canonical.canonical_r2_all(c, G):
+        LOG.debug('%s %s' %(str(c), 'R2'))
+        return
+    elif not canonical.canonical_r1_all(c):
+        LOG.debug('%s %s' %(str(c), 'R1'))
+    else:
+        LOG.debug('%s %s' %(str(c), 'F'))
+        if alg.filter(c, G, last_v):
+            alg.process(c, G)
+        else:
+            return
+
     if len(c) > alg.max:
+        return
+    else:
+        V = set(filter(lambda v: last_v is None or True, graph.neighborhood(c, G)))
+        for v in V:
+            if v not in c:
+                for i in range(0, len(c) + 1):
+                    c.insert(i, v)
+                    if graph.is_connected(v, c, G):
+                        backwards_explore(G, alg, c, v)
+                    c.pop(i)
+
+
+def backwards_explore_update(G, alg, edge, add_to_graph=True):
+    if len(edge) != 2:
+        return
+    G.add_edge(edge[0], edge[1])
+    backwards_explore(G, alg, edge)
+    backwards_explore(G, alg, [edge[1], edge[0]])
+    if not add_to_graph:
+        G.remove_edge(edge[0], edge[1])
+
+
+def middleout_explore(G, alg, c, ignore=[]):
+    if len(c) == alg.max:
         return
     else:
         V = set(graph.neighborhood(c, G))
         for v in V:
             if v not in c:
-                cc = copy.deepcopy(c)
-                for i in range(0, len(cc) + 1):
-                    ccc = cc[:i] + [v] + cc[i:]
-                    if not graph.is_connected(ccc, G) or not canonical.canonical_r2(ccc, G):  # is_connected check has bad complexity here, do better!
-                        continue
-                    elif not canonical.canonical_r1(ccc):
-                        if alg.filter(ccc, G):
-                            backwards_explore(G, alg, ccc)
-                    else:
-                        if alg.filter(ccc, G):
-                            alg.process(ccc, G)
-                        backwards_explore(G, alg, ccc)
+                if canonical.canonical_r2(c, v, G, ignore=ignore):
+                    c.append(v)
+                    LOG.debug('%s %s' %(str(c), 'F'))
+                    if alg.filter(c, G, v):
+                        alg.process(c, G)
+                        middleout_explore(G, alg, c, ignore=ignore)
+                    c.pop()
+                else:
+                    LOG.debug('%s %s' %(str(c), 'R'))
 
 
-def backwards_explore_update(G, alg, edge):
+def middleout_explore_update(G, alg, edge, add_to_graph=True):
     if len(edge) != 2:
         return
-    GG = copy.deepcopy(G)
-    GG.add_edge(edge[0], edge[1])
-    backwards_explore(GG, alg, edge)
-    backwards_explore(GG, alg, [edge[1], edge[0]])
+    G.add_edge(edge[0], edge[1])
+    middleout_explore(G, alg, edge, ignore=[edge[1]])
+    if not add_to_graph:
+        G.remove_edge(edge[0], edge[1])
