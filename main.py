@@ -113,6 +113,8 @@ if __name__ == '__main__':
 
         LOG.info('Running middle-out exploration with algorithm \'%s\' and %d updates' % (args.algorithm, len(updates)))
 
+        random.shuffle(updates)
+
         start = timer()
         for i, update in enumerate(updates):
             if i < 1000 and i % 100 == 0 or i % 1000 == 0:
