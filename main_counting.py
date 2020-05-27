@@ -74,16 +74,21 @@ if __name__ == '__main__':
         nx.draw(G, with_labels=True, font_weight='bold')
         plt.show()
 
+    already_dfs = set()
     neighborhoods = set()
     for edge in tqdm(G.edges, unit=' edges', total=len(G.edges)):
         u, v = edge
         if random.randint(0,999999) % 1000000 < args.percent * 10000:
-            tree = nx.bfs_tree(G, source=u, depth_limit=args.depth)
-            for x in tree:
-                neighborhoods.add(x)
-            tree = nx.bfs_tree(G, source=v, depth_limit=args.depth)
-            for x in tree:
-                neighborhoods.add(x)
+            if u not in already_dfs:
+                already_dfs.add(u)
+                tree = nx.bfs_tree(G, source=u, depth_limit=args.depth)
+                for x in tree:
+                    neighborhoods.add(x)
+            if v not in already_dfs:
+                already_dfs.add(v)
+                tree = nx.bfs_tree(G, source=v, depth_limit=args.depth)
+                for x in tree:
+                    neighborhoods.add(x)
 
 
     LOG_STATS.info('Neighborhoods have %d vertices, i.e., %0.4f%% of the graph' % (len(neighborhoods), (float(len(neighborhoods)) / len(G.nodes)) * 100))
